@@ -491,6 +491,22 @@ function UserFormDialog({
   );
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
 
+  const previewUrl = useMemo(() => {
+    if (!profilePhoto) {
+      return null;
+    }
+
+    return URL.createObjectURL(profilePhoto);
+  }, [profilePhoto]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[360px] rounded-2xl p-5">
@@ -526,6 +542,10 @@ function UserFormDialog({
           <div className="flex justify-center">
             <div className="relative">
               <Avatar className="size-[72px] border border-[#d8d8d8]">
+                <AvatarImage
+                  src={previewUrl ?? initialValues?.avatar?.url ?? ""}
+                  alt={name || "User"}
+                />
                 <AvatarFallback>{getUserInitials(name || "User")}</AvatarFallback>
               </Avatar>
               <input
@@ -533,7 +553,22 @@ function UserFormDialog({
                 accept="image/*"
                 className="absolute inset-0 cursor-pointer opacity-0"
                 onChange={(event) => {
-                  setProfilePhoto(event.target.files?.[0] ?? null);
+                  const nextFile = event.target.files?.[0] ?? null;
+                  if (!nextFile) {
+                    return;
+                  }
+
+                  if (!nextFile.type.startsWith("image/")) {
+                    toast.error("Please upload a valid image file");
+                    return;
+                  }
+
+                  if (nextFile.size > 5 * 1024 * 1024) {
+                    toast.error("Image size must be under 5MB");
+                    return;
+                  }
+
+                  setProfilePhoto(nextFile);
                 }}
               />
             </div>
