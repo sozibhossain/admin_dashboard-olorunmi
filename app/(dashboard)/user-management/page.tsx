@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  UserFormDialog,
+  type UserFormPayload,
+} from "./_components/user-form-dialog";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PaginationControls } from "@/components/common/pagination-controls";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -54,14 +58,11 @@ import type { ReportItem, UserListItem } from "@/types/api";
 
 const PAGE_LIMIT = 8;
 
-type UserFormPayload = {
-  name: string;
-  userId: string;
-  password: string;
-  latitude: number;
-  longitude: number;
-  defaultRadius: number;
-  profilePhoto?: File | null;
+type UserActivity = {
+  id: string;
+  label: string;
+  time: string;
+  status: "danger" | "success";
 };
 
 export default function UserManagementPage() {
@@ -169,7 +170,7 @@ export default function UserManagementPage() {
   const selectedUser = detailsQuery.data?.user;
   const reports = detailsQuery.data?.reports ?? [];
 
-  const activities = useMemo(() => {
+  const activities = useMemo<UserActivity[]>(() => {
     const checklists = detailsQuery.data?.checklists ?? [];
     return checklists.slice(0, 5).map((item) => ({
       id: item._id,
@@ -211,15 +212,15 @@ export default function UserManagementPage() {
         <TableSkeleton rows={PAGE_LIMIT} />
       ) : (
         <>
-          <Table className="min-w-[980px]">
+          <Table className="">
             <TableHeader>
-              <TableRow className="border-none">
+              <TableRow className="border-none ">
                 <TableHead>Profile Image</TableHead>
                 <TableHead>User Name</TableHead>
                 <TableHead>User ID</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Password</TableHead>
-                <TableHead>Action</TableHead>
+                <TableHead className="text-center">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -247,7 +248,7 @@ export default function UserManagementPage() {
                       <Badge variant="dark">12345678</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-end justify-center gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -309,93 +310,20 @@ export default function UserManagementPage() {
         onSubmit={handleSubmitUser}
       />
 
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-h-[92vh] max-w-[820px] overflow-y-auto rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>User Details</DialogTitle>
-          </DialogHeader>
+      <UserDetailsDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        loading={detailsQuery.isLoading}
+        user={selectedUser}
+        activities={activities}
+        onViewReports={() => setReportsOpen(true)}
+      />
 
-          {detailsQuery.isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-32 w-full" />
-            </div>
-          ) : selectedUser ? (
-            <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <InfoCard label="User Name" value={selectedUser.name || "-"} />
-                <InfoCard label="User ID" value={selectedUser.userId || "-"} />
-                <InfoCard label="Password" value="12345678" />
-              </div>
-
-              <div className="rounded-xl border border-[#dfdfdf] bg-[#f7f7f7] p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold">Activity History</p>
-                  <Button
-                    size="sm"
-                    className="h-8 rounded-full px-4"
-                    onClick={() => setReportsOpen(true)}
-                  >
-                    <Eye className="size-4" />
-                    View Reports
-                  </Button>
-                </div>
-
-                <p className="mb-2 text-sm text-[#545454]">Check in Location</p>
-                <div className="h-[130px] rounded-xl bg-[linear-gradient(135deg,#dedede,#f5f5f5)]" />
-              </div>
-
-              <div className="space-y-2">
-                {activities.length === 0 ? (
-                  <p className="text-sm text-[#6f6f6f]">No recent activity found</p>
-                ) : (
-                  activities.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between rounded-lg border border-[#d6c8a0] bg-white px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <span
-                          className={`inline-flex size-5 items-center justify-center rounded-full ${
-                            item.status === "danger"
-                              ? "bg-[#ffe5e5] text-[#ff2b2b]"
-                              : "bg-[#e2f5e7] text-[#228f45]"
-                          }`}
-                        >
-                          <MapPin className="size-3" />
-                        </span>
-                        {item.label}
-                      </div>
-                      <span className="text-xs text-[#626262]">{formatDateLabel(item.time)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ) : (
-            <DialogDescription>User details are not available.</DialogDescription>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={reportsOpen} onOpenChange={setReportsOpen}>
-        <DialogContent className="max-w-[360px] rounded-2xl p-5">
-          <DialogHeader>
-            <DialogTitle className="text-[32px]">View Reports</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            {reports.length === 0 ? (
-              <p className="text-sm text-[#666]">No reports found</p>
-            ) : (
-              reports.map((report) => (
-                <ReportRow key={report._id} report={report} />
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ReportsDialog
+        open={reportsOpen}
+        onOpenChange={setReportsOpen}
+        reports={reports}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteUserId)}
@@ -431,6 +359,164 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+function UserDetailsDialog({
+  open,
+  onOpenChange,
+  loading,
+  user,
+  activities,
+  onViewReports,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  loading: boolean;
+  user?: UserListItem;
+  activities: UserActivity[];
+  onViewReports: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] max-w-[820px] overflow-y-auto rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>User Details</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <UserDetailsSkeleton />
+        ) : user ? (
+          <UserDetailsBody
+            user={user}
+            activities={activities}
+            onViewReports={onViewReports}
+          />
+        ) : (
+          <DialogDescription>User details are not available.</DialogDescription>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UserDetailsSkeleton() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-48 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  );
+}
+
+function UserDetailsBody({
+  user,
+  activities,
+  onViewReports,
+}: {
+  user: UserListItem;
+  activities: UserActivity[];
+  onViewReports: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <InfoCard label="User Name" value={user.name || "-"} />
+        <InfoCard label="User ID" value={user.userId || "-"} />
+        <InfoCard label="Password" value="12345678" />
+      </div>
+
+      <ActivityHistoryCard onViewReports={onViewReports} />
+      <ActivitiesList activities={activities} />
+    </div>
+  );
+}
+
+function ActivityHistoryCard({ onViewReports }: { onViewReports: () => void }) {
+  return (
+    <div className="rounded-xl border border-[#dfdfdf] bg-[#f7f7f7] p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm font-semibold">Activity History</p>
+        <Button size="sm" className="h-8 rounded-full px-4" onClick={onViewReports}>
+          <Eye className="size-4" />
+          View Reports
+        </Button>
+      </div>
+
+      <p className="mb-2 text-sm text-[#545454]">Check in Location</p>
+      <div className="h-[130px] rounded-xl bg-[linear-gradient(135deg,#dedede,#f5f5f5)]" />
+    </div>
+  );
+}
+
+function ActivitiesList({ activities }: { activities: UserActivity[] }) {
+  if (activities.length === 0) {
+    return <p className="text-sm text-[#6f6f6f]">No recent activity found</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {activities.map((item) => (
+        <ActivityRow key={item.id} item={item} />
+      ))}
+    </div>
+  );
+}
+
+function ActivityRow({ item }: { item: UserActivity }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-[#d6c8a0] bg-white px-3 py-2">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <span
+          className={`inline-flex size-5 items-center justify-center rounded-full ${
+            item.status === "danger"
+              ? "bg-[#ffe5e5] text-[#ff2b2b]"
+              : "bg-[#e2f5e7] text-[#228f45]"
+          }`}
+        >
+          <MapPin className="size-3" />
+        </span>
+        {item.label}
+      </div>
+      <span className="text-xs text-[#626262]">{formatDateLabel(item.time)}</span>
+    </div>
+  );
+}
+
+function ReportsDialog({
+  open,
+  onOpenChange,
+  reports,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reports: ReportItem[];
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[360px] rounded-2xl p-5">
+        <DialogHeader>
+          <DialogTitle className="text-[32px]">View Reports</DialogTitle>
+        </DialogHeader>
+
+        <ReportsList reports={reports} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReportsList({ reports }: { reports: ReportItem[] }) {
+  if (reports.length === 0) {
+    return <p className="text-sm text-[#666]">No reports found</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {reports.map((report) => (
+        <ReportRow key={report._id} report={report} />
+      ))}
+    </div>
+  );
+}
+
 function ReportRow({ report }: { report: ReportItem }) {
   const onDownload = () => {
     const content = `${report.reportName}\n\n${report.reportDescription}`;
@@ -461,177 +547,5 @@ function ReportRow({ report }: { report: ReportItem }) {
         <Download className="size-4" />
       </button>
     </div>
-  );
-}
-
-function UserFormDialog({
-  open,
-  onOpenChange,
-  initialValues,
-  onSubmit,
-  loading,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  initialValues: UserListItem | null;
-  onSubmit: (payload: UserFormPayload) => void;
-  loading: boolean;
-}) {
-  const [name, setName] = useState(initialValues?.name ?? "");
-  const [userId, setUserId] = useState(initialValues?.userId ?? "");
-  const [password, setPassword] = useState("");
-  const [latitude, setLatitude] = useState(
-    String(initialValues?.location?.latitude ?? 23.8103)
-  );
-  const [longitude, setLongitude] = useState(
-    String(initialValues?.location?.longitude ?? 90.4125)
-  );
-  const [defaultRadius, setDefaultRadius] = useState(
-    String(initialValues?.defaultRadius ?? 100)
-  );
-  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
-
-  const previewUrl = useMemo(() => {
-    if (!profilePhoto) {
-      return null;
-    }
-
-    return URL.createObjectURL(profilePhoto);
-  }, [profilePhoto]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[360px] rounded-2xl p-5">
-        <DialogHeader>
-          <DialogTitle>{initialValues ? "Update user" : "Add New user"}</DialogTitle>
-        </DialogHeader>
-
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-
-            const parsedLatitude = Number(latitude);
-            const parsedLongitude = Number(longitude);
-            const parsedRadius = Number(defaultRadius);
-
-            if (Number.isNaN(parsedLatitude) || Number.isNaN(parsedLongitude)) {
-              toast.error("Latitude and longitude must be valid numbers");
-              return;
-            }
-
-            onSubmit({
-              name,
-              userId,
-              password,
-              latitude: parsedLatitude,
-              longitude: parsedLongitude,
-              defaultRadius: Number.isNaN(parsedRadius) ? 100 : parsedRadius,
-              profilePhoto,
-            });
-          }}
-        >
-          <div className="flex justify-center">
-            <div className="relative">
-              <Avatar className="size-[72px] border border-[#d8d8d8]">
-                <AvatarImage
-                  src={previewUrl ?? initialValues?.avatar?.url ?? ""}
-                  alt={name || "User"}
-                />
-                <AvatarFallback>{getUserInitials(name || "User")}</AvatarFallback>
-              </Avatar>
-              <input
-                type="file"
-                accept="image/*"
-                className="absolute inset-0 cursor-pointer opacity-0"
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0] ?? null;
-                  if (!nextFile) {
-                    return;
-                  }
-
-                  if (!nextFile.type.startsWith("image/")) {
-                    toast.error("Please upload a valid image file");
-                    return;
-                  }
-
-                  if (nextFile.size > 5 * 1024 * 1024) {
-                    toast.error("Image size must be under 5MB");
-                    return;
-                  }
-
-                  setProfilePhoto(nextFile);
-                }}
-              />
-            </div>
-          </div>
-
-          <Input
-            placeholder="Enter User Name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-
-          <Input
-            placeholder="User ID"
-            value={userId}
-            onChange={(event) => setUserId(event.target.value)}
-            required
-          />
-
-          <Input
-            type="password"
-            placeholder={initialValues ? "New Password (optional)" : "Password"}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required={!initialValues}
-          />
-
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Latitude"
-              value={latitude}
-              onChange={(event) => setLatitude(event.target.value)}
-              required
-            />
-            <Input
-              placeholder="Longitude"
-              value={longitude}
-              onChange={(event) => setLongitude(event.target.value)}
-              required
-            />
-          </div>
-
-          <Input
-            placeholder="Default Radius"
-            value={defaultRadius}
-            onChange={(event) => setDefaultRadius(event.target.value)}
-            required
-          />
-
-          <div className="h-[122px] rounded-xl bg-[linear-gradient(145deg,#ddd,#f4f4f4)]" />
-
-          <Button type="submit" className="h-11 w-full" disabled={loading}>
-            <Plus className="size-4" />
-            {loading
-              ? initialValues
-                ? "Updating..."
-                : "Creating..."
-              : initialValues
-                ? "Update User"
-                : "Add New User"}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
