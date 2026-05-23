@@ -46,6 +46,7 @@ export type UserListItem = {
   address?: string;
   userId?: string;
   role?: string;
+  textPassword?: string;
   avatar?: {
     public_id?: string;
     url?: string;

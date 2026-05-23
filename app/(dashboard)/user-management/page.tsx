@@ -5,13 +5,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   Eye,
+  EyeOff,
   FileText,
+  IdCard,
+  Lock,
   MapPin,
   Pencil,
   Plus,
   Search,
   Trash2,
-  X,
+  User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,6 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UserLocationMap } from "./_components/user-location-map";
 import {
   createUser,
   deleteUser,
@@ -79,6 +83,11 @@ export default function UserManagementPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsUserId, setDetailsUserId] = useState<string | null>(null);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (id: string) => {
+    setRevealedPasswords((previous) => ({ ...previous, [id]: !previous[id] }));
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -245,7 +254,29 @@ export default function UserManagementPage() {
                       {user.createdAt ? formatDateLabel(user.createdAt) : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="dark">12345678</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="dark">
+                          {revealedPasswords[user._id]
+                            ? user.textPassword || "—"
+                            : "••••••••"}
+                        </Badge>
+                        <button
+                          type="button"
+                          aria-label={
+                            revealedPasswords[user._id]
+                              ? "Hide password"
+                              : "Show password"
+                          }
+                          className="text-[#6f6f6f] hover:text-[#1f1f1f]"
+                          onClick={() => togglePasswordVisibility(user._id)}
+                        >
+                          {revealedPasswords[user._id] ? (
+                            <EyeOff className="size-4" />
+                          ) : (
+                            <Eye className="size-4" />
+                          )}
+                        </button>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-end justify-center gap-2">
@@ -347,13 +378,46 @@ export default function UserManagementPage() {
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+function InfoCard({
+  label,
+  value,
+  icon: Icon = FileText,
+}: {
+  label: string;
+  value: string;
+  icon?: typeof FileText;
+}) {
   return (
     <div>
       <Label className="mb-1.5 block text-xs text-[#5f5f5f]">{label}</Label>
       <div className="flex h-11 items-center gap-2 rounded-xl bg-[#e7e7e7] px-3 text-sm font-medium text-[#2f2f2f]">
-        {label.toLowerCase().includes("password") ? <X className="size-4" /> : <FileText className="size-4" />}
+        <Icon className="size-4 shrink-0 text-[#6f6f6f]" />
         <span className="truncate">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function PasswordInfoCard({ value }: { value: string }) {
+  const [visible, setVisible] = useState(false);
+  const display = value || "-";
+
+  return (
+    <div>
+      <Label className="mb-1.5 block text-xs text-[#5f5f5f]">Password</Label>
+      <div className="flex h-11 items-center gap-2 rounded-xl bg-[#e7e7e7] px-3 text-sm font-medium text-[#2f2f2f]">
+        <Lock className="size-4 shrink-0 text-[#6f6f6f]" />
+        <span className="flex-1 truncate font-mono tracking-wider">
+          {visible ? display : "••••••••"}
+        </span>
+        <button
+          type="button"
+          aria-label={visible ? "Hide password" : "Show password"}
+          className="shrink-0 text-[#6f6f6f] hover:text-[#1f1f1f]"
+          onClick={() => setVisible((previous) => !previous)}
+        >
+          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
       </div>
     </div>
   );
@@ -419,18 +483,32 @@ function UserDetailsBody({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
-        <InfoCard label="User Name" value={user.name || "-"} />
-        <InfoCard label="User ID" value={user.userId || "-"} />
-        <InfoCard label="Password" value="12345678" />
+        <InfoCard label="User Name" value={user.name || "-"} icon={UserIcon} />
+        <InfoCard label="User ID" value={user.userId || "-"} icon={IdCard} />
+        <PasswordInfoCard value={user.textPassword || ""} />
       </div>
 
-      <ActivityHistoryCard onViewReports={onViewReports} />
+      <ActivityHistoryCard user={user} onViewReports={onViewReports} />
       <ActivitiesList activities={activities} />
     </div>
   );
 }
 
-function ActivityHistoryCard({ onViewReports }: { onViewReports: () => void }) {
+function ActivityHistoryCard({
+  user,
+  onViewReports,
+}: {
+  user: UserListItem;
+  onViewReports: () => void;
+}) {
+  const latitude = user.location?.latitude;
+  const longitude = user.location?.longitude;
+  const hasLocation =
+    typeof latitude === "number" &&
+    typeof longitude === "number" &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude);
+
   return (
     <div className="rounded-xl border border-[#dfdfdf] bg-[#f7f7f7] p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -441,8 +519,29 @@ function ActivityHistoryCard({ onViewReports }: { onViewReports: () => void }) {
         </Button>
       </div>
 
-      <p className="mb-2 text-sm text-[#545454]">Check in Location</p>
-      <div className="h-[130px] rounded-xl bg-[linear-gradient(135deg,#dedede,#f5f5f5)]" />
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm text-[#545454]">Check in Location</p>
+        {hasLocation ? (
+          <p className="text-xs text-[#6f6f6f]">
+            <MapPin className="mr-1 inline size-3" />
+            {latitude.toFixed(5)}, {longitude.toFixed(5)}
+            {user.defaultRadius ? ` · ${user.defaultRadius}m radius` : ""}
+          </p>
+        ) : null}
+      </div>
+
+      {hasLocation ? (
+        <UserLocationMap
+          latitude={latitude}
+          longitude={longitude}
+          radius={user.defaultRadius}
+          heightClassName="h-[220px]"
+        />
+      ) : (
+        <div className="flex h-32.5 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#dedede,#f5f5f5)] text-sm text-[#6f6f6f]">
+          No location set for this user
+        </div>
+      )}
     </div>
   );
 }
