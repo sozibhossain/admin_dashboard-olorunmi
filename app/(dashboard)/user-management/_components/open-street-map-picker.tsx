@@ -6,6 +6,7 @@ type OpenStreetMapPickerProps = {
   latitude: number;
   longitude: number;
   onChange: (latitude: number, longitude: number) => void;
+  heightClassName?: string;
 };
 
 const OpenStreetMapPickerClient = dynamic(
@@ -18,4 +19,3 @@ const OpenStreetMapPickerClient = dynamic(
 export function OpenStreetMapPicker(props: OpenStreetMapPickerProps) {
   return <OpenStreetMapPickerClient {...props} />;
 }
-
