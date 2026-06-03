@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Eye, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -28,12 +28,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { deleteAlert, getAlerts, getApiMessage, sendAlert } from "@/lib/api";
+import {
+  deleteAlert,
+  getAlerts,
+  getApiMessage,
+  getUserChecklists,
+  sendAlert,
+} from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTimeLabel } from "@/lib/utils";
 import type { ChecklistItem } from "@/types/api";
 
 const PAGE_LIMIT = 8;
+
+// Matches the backend workDate format (new Date().toISOString().slice(0, 10)).
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 export default function AlertManagementPage() {
   const queryClient = useQueryClient();
@@ -44,6 +53,9 @@ export default function AlertManagementPage() {
 
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<ChecklistItem | null>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [viewAlert, setViewAlert] = useState<ChecklistItem | null>(null);
+  const [viewDate, setViewDate] = useState(getTodayDate);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,6 +70,18 @@ export default function AlertManagementPage() {
   const alertsQuery = useQuery({
     queryKey: QUERY_KEYS.alerts(page, search),
     queryFn: () => getAlerts({ page, limit: PAGE_LIMIT, search }),
+  });
+
+  const viewUserId = viewAlert?.user?._id;
+
+  const checklistsQuery = useQuery({
+    queryKey: QUERY_KEYS.userChecklists(viewUserId, viewDate),
+    queryFn: () =>
+      getUserChecklists({
+        user: viewUserId as string,
+        date: viewDate || undefined,
+      }),
+    enabled: viewModalOpen && Boolean(viewUserId),
   });
 
   const sendMutation = useMutation({
@@ -141,7 +165,7 @@ export default function AlertManagementPage() {
                         : formatDateTimeLabel(alert.checkInAt)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="danger">Out of location Zone</Badge>
+                      <Badge variant="danger">{alert.status}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -156,6 +180,19 @@ export default function AlertManagementPage() {
                         >
                           <AlertTriangle className="size-4" />
                           {alert.alertStatus === "sent" ? "Alert Sent" : "Send alert"}
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="size-9 rounded-full bg-[#e9f0ff] text-[#2b6bff]"
+                          onClick={() => {
+                            setViewAlert(alert);
+                            setViewDate(getTodayDate());
+                            setViewModalOpen(true);
+                          }}
+                        >
+                          <Eye className="size-4" />
                         </Button>
 
                         <Button
@@ -235,6 +272,123 @@ export default function AlertManagementPage() {
             >
               <AlertTriangle className="size-4" />
               {sendMutation.isPending ? "Sending..." : "Send alert"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
+        <DialogContent className="max-w-[600px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Alert Details</DialogTitle>
+            <DialogDescription>
+              Location alert raised because the user moved out of their location zone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-[#efefef] px-3 py-2">
+                <p className="text-xs text-[#696969]">User Name</p>
+                <p className="font-medium">{viewAlert?.user?.name ?? "-"}</p>
+              </div>
+              <div className="rounded-xl bg-[#efefef] px-3 py-2">
+                <p className="text-xs text-[#696969]">User ID</p>
+                <p className="font-medium">{viewAlert?.user?.userId ?? "-"}</p>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-[#2f2f2f]">Checklist History</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={viewDate}
+                    onChange={(event) => setViewDate(event.target.value)}
+                    className="h-9 w-[150px] rounded-lg border border-[#b9b9b9] bg-transparent px-2 text-sm"
+                  />
+                  {viewDate ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setViewDate("")}
+                    >
+                      Clear
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              {checklistsQuery.isLoading ? (
+                <p className="rounded-xl bg-[#efefef] px-3 py-6 text-center text-sm text-[#6f6f6f]">
+                  Loading checklist history...
+                </p>
+              ) : checklistsQuery.isError ? (
+                <p className="rounded-xl bg-[#fdecef] px-3 py-6 text-center text-sm text-[#ff2b2b]">
+                  {getApiMessage(checklistsQuery.error, "Unable to load checklist history")}
+                </p>
+              ) : (checklistsQuery.data?.length ?? 0) === 0 ? (
+                <p className="rounded-xl bg-[#efefef] px-3 py-6 text-center text-sm text-[#6f6f6f]">
+                  No checklist records found
+                </p>
+              ) : (
+                <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
+                  {checklistsQuery.data?.map((item) => (
+                    <div key={item._id} className="rounded-xl border border-[#e4e4e4] p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <Badge>
+                          {item.status}
+                        </Badge>
+                        <span className="text-xs text-[#696969]">{item.workDate}</span>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg bg-[#efefef] px-3 py-2">
+                          <p className="text-xs text-[#696969]">Check In</p>
+                          <p className="text-sm font-medium">
+                            {item.checkInAt ? formatDateTimeLabel(item.checkInAt) : "-"}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-[#efefef] px-3 py-2">
+                          <p className="text-xs text-[#696969]">Check Out</p>
+                          <p className="text-sm font-medium">
+                            {item.checkOutAt ? formatDateTimeLabel(item.checkOutAt) : "-"}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-[#efefef] px-3 py-2">
+                          <p className="text-xs text-[#696969]">Check In Location</p>
+                          <p className="text-sm font-medium">
+                            {item.checkInLocation
+                              ? `${item.checkInLocation.latitude}, ${item.checkInLocation.longitude}`
+                              : "-"}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-[#efefef] px-3 py-2">
+                          <p className="text-xs text-[#696969]">Check Out Location</p>
+                          <p className="text-sm font-medium">
+                            {item.checkOutLocation?.latitude != null &&
+                            item.checkOutLocation?.longitude != null
+                              ? `${item.checkOutLocation.latitude}, ${item.checkOutLocation.longitude}`
+                              : "-"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-row justify-center sm:justify-center">
+            <Button
+              variant="outline"
+              className="min-w-[140px]"
+              onClick={() => setViewModalOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

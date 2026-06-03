@@ -223,6 +223,14 @@ export const getAlerts = async (params: {
   return response.data.data;
 };
 
+export const getUserChecklists = async (params: { user: string; date?: string }) => {
+  const response = await apiClient.get<ApiResponse<ChecklistItem[]>>("/checklist/me", {
+    params,
+  });
+
+  return response.data.data;
+};
+
 export const sendAlert = async (id: string) => {
   const response = await apiClient.post<ApiResponse<ChecklistItem>>(
     `/checklist/admin/alerts/${id}/send`
