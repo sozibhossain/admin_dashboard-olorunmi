@@ -5,13 +5,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   Eye,
+  EyeOff,
   FileText,
+  IdCard,
+  Lock,
   MapPin,
   Pencil,
   Plus,
   Search,
   Trash2,
-  X,
+  User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,6 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UserLocationMap } from "./_components/user-location-map";
 import {
   createUser,
   deleteUser,
@@ -79,6 +83,11 @@ export default function UserManagementPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsUserId, setDetailsUserId] = useState<string | null>(null);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (id: string) => {
+    setRevealedPasswords((previous) => ({ ...previous, [id]: !previous[id] }));
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -245,7 +254,29 @@ export default function UserManagementPage() {
                       {user.createdAt ? formatDateLabel(user.createdAt) : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="dark">12345678</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="dark">
+                          {revealedPasswords[user._id]
+                            ? user.textPassword || "—"
+                            : "••••••••"}
+                        </Badge>
+                        <button
+                          type="button"
+                          aria-label={
+                            revealedPasswords[user._id]
+                              ? "Hide password"
+                              : "Show password"
+                          }
+                          className="text-[#6f6f6f] hover:text-[#1f1f1f]"
+                          onClick={() => togglePasswordVisibility(user._id)}
+                        >
+                          {revealedPasswords[user._id] ? (
+                            <EyeOff className="size-4" />
+                          ) : (
+                            <Eye className="size-4" />
+                          )}
+                        </button>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-end justify-center gap-2">
@@ -347,12 +378,20 @@ export default function UserManagementPage() {
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+function InfoCard({
+  label,
+  value,
+  icon: Icon = FileText,
+}: {
+  label: string;
+  value: string;
+  icon?: typeof FileText;
+}) {
   return (
     <div>
       <Label className="mb-1.5 block text-xs text-[#5f5f5f]">{label}</Label>
       <div className="flex h-11 items-center gap-2 rounded-xl bg-[#e7e7e7] px-3 text-sm font-medium text-[#2f2f2f]">
-        {label.toLowerCase().includes("password") ? <X className="size-4" /> : <FileText className="size-4" />}
+        <Icon className="size-4 shrink-0 text-[#6f6f6f]" />
         <span className="truncate">{value}</span>
       </div>
     </div>
@@ -530,22 +569,22 @@ function ReportRow({ report }: { report: ReportItem }) {
   };
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-[#d9ccaa] bg-[#f7f7f7] px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <FileText className="size-4 text-[#676767]" />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{report.reportName}</p>
-          <p className="text-xs text-[#6d6d6d]">{formatDateLabel(report.createdAt)}</p>
-        </div>
+    <div>
+      <Label className="mb-1.5 block text-xs text-[#5f5f5f]">Password</Label>
+      <div className="flex h-11 items-center gap-2 rounded-xl bg-[#e7e7e7] px-3 text-sm font-medium text-[#2f2f2f]">
+        <Lock className="size-4 shrink-0 text-[#6f6f6f]" />
+        <span className="flex-1 truncate font-mono tracking-wider">
+          {visible ? display : "••••••••"}
+        </span>
+        <button
+          type="button"
+          aria-label={visible ? "Hide password" : "Show password"}
+          className="shrink-0 text-[#6f6f6f] hover:text-[#1f1f1f]"
+          onClick={() => setVisible((previous) => !previous)}
+        >
+          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
       </div>
-
-      <button
-        type="button"
-        className="text-[#6f6f6f] hover:text-[#383838]"
-        onClick={onDownload}
-      >
-        <Download className="size-4" />
-      </button>
     </div>
   );
 }
